@@ -3,6 +3,7 @@ module github.com/DavidArthurCole/EggLedgerSyncServer
 go 1.24
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/pkg/errors v0.9.1
 	golang.org/x/oauth2 v0.20.0
