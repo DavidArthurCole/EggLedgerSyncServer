@@ -68,6 +68,11 @@ func HandleCallback(ctx context.Context, code, state string, storePendingFn func
 	return storePendingFn(state, sessionToken, DiscordUser{ID: raw.ID, Username: raw.Username, AvatarURL: avatarURL})
 }
 
+// GenerateEncryptionKey returns a new random 256-bit key as a 64-char hex string.
+func GenerateEncryptionKey() string {
+	return randomHex(32)
+}
+
 func randomHex(n int) string {
 	b := make([]byte, n)
 	rand.Read(b)
