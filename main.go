@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	_flagAddr        = flag.String("addr", ":8080", "listen address")
+	_flagAddr        = flag.String("addr", os.Getenv("LISTEN_ADDR"), "listen address (env: LISTEN_ADDR)")
 	_flagDBConnStr   = flag.String("db", os.Getenv("DATABASE_URL"), "PostgreSQL connection string (postgres://user:pass@host:5432/dbname)")
 	_flagDiscordID   = flag.String("discord-client-id", os.Getenv("DISCORD_CLIENT_ID"), "Discord OAuth2 client ID")
 	_flagDiscordSec  = flag.String("discord-client-secret", os.Getenv("DISCORD_CLIENT_SECRET"), "Discord OAuth2 client secret")
@@ -30,6 +30,10 @@ var (
 
 func main() {
 	flag.Parse()
+
+	if *_flagAddr == "" {
+		*_flagAddr = ":8080"
+	}
 
 	if err := db.Init(*_flagDBConnStr); err != nil {
 		log.Fatalf("db init: %v", err)
