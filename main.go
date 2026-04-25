@@ -100,20 +100,22 @@ func handleAuthCallback(w http.ResponseWriter, r *http.Request, database *sql.DB
 	code := r.URL.Query().Get("code")
 	state := r.URL.Query().Get("state")
 
-	err := auth.HandleCallback(r.Context(), code, state, func(state, token, discordID string) error {
+	err := auth.HandleCallback(r.Context(), code, state, func(state, token string, user auth.DiscordUser) error {
 		database.ExecContext(r.Context(),
-			`INSERT INTO users (discord_id, created_at) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-			discordID, time.Now().Unix(),
+			`INSERT INTO users (discord_id, created_at, username, avatar_url) VALUES ($1, $2, $3, $4)
+			 ON CONFLICT (discord_id) DO UPDATE SET username = EXCLUDED.username, avatar_url = EXCLUDED.avatar_url`,
+			user.ID, time.Now().Unix(), user.Username, user.AvatarURL,
 		)
 		_, err := database.ExecContext(r.Context(),
 			`INSERT INTO sessions (token, discord_id, expires_at) VALUES ($1, $2, $3)`,
-			token, discordID, time.Now().Add(24*time.Hour).Unix(),
+			token, user.ID, time.Now().Add(24*time.Hour).Unix(),
 		)
 		if err != nil {
 			return err
 		}
 		_, err = database.ExecContext(r.Context(),
-			`UPDATE pending_auth SET session_token = $1 WHERE state = $2`, token, state,
+			`UPDATE pending_auth SET session_token = $1, username = $2, avatar_url = $3 WHERE state = $4`,
+			token, user.Username, user.AvatarURL, state,
 		)
 		return err
 	})
@@ -154,10 +156,11 @@ func handleAuthCallback(w http.ResponseWriter, r *http.Request, database *sql.DB
 func handleAuthPoll(w http.ResponseWriter, r *http.Request, database *sql.DB) {
 	state := r.URL.Query().Get("state")
 	var token sql.NullString
+	var username, avatarURL string
 	var expiresAt int64
 	err := database.QueryRowContext(r.Context(),
-		`SELECT session_token, expires_at FROM pending_auth WHERE state = $1`, state,
-	).Scan(&token, &expiresAt)
+		`SELECT session_token, expires_at, username, avatar_url FROM pending_auth WHERE state = $1`, state,
+	).Scan(&token, &expiresAt, &username, &avatarURL)
 	if err != nil || time.Now().Unix() > expiresAt {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -168,7 +171,7 @@ func handleAuthPoll(w http.ResponseWriter, r *http.Request, database *sql.DB) {
 	}
 	database.ExecContext(r.Context(), `DELETE FROM pending_auth WHERE state = $1`, state)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"token": token.String})
+	json.NewEncoder(w).Encode(map[string]string{"token": token.String, "username": username, "avatarUrl": avatarURL})
 }
 
 func handleDeleteSession(w http.ResponseWriter, r *http.Request, database *sql.DB) {

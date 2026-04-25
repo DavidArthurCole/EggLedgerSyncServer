@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
@@ -31,9 +32,16 @@ func AuthURL() (url, state string) {
 	return url, state
 }
 
-// HandleCallback exchanges the OAuth2 code for a Discord user ID,
-// then calls storePendingFn with the state, a new session token, and the Discord user ID.
-func HandleCallback(ctx context.Context, code, state string, storePendingFn func(state, token, discordID string) error) error {
+// DiscordUser holds the fields we capture from the Discord /users/@me endpoint.
+type DiscordUser struct {
+	ID       string
+	Username string
+	AvatarURL string
+}
+
+// HandleCallback exchanges the OAuth2 code for Discord user info,
+// then calls storePendingFn with the state, a new session token, and the Discord user.
+func HandleCallback(ctx context.Context, code, state string, storePendingFn func(state, token string, user DiscordUser) error) error {
 	token, err := _oauthConfig.Exchange(ctx, code)
 	if err != nil {
 		return errors.Wrap(err, "HandleCallback: exchange")
@@ -44,14 +52,20 @@ func HandleCallback(ctx context.Context, code, state string, storePendingFn func
 		return errors.Wrap(err, "HandleCallback: get user")
 	}
 	defer resp.Body.Close()
-	var user struct {
-		ID string `json:"id"`
+	var raw struct {
+		ID     string `json:"id"`
+		Username string `json:"username"`
+		Avatar string `json:"avatar"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
 		return errors.Wrap(err, "HandleCallback: decode user")
 	}
+	avatarURL := ""
+	if raw.Avatar != "" {
+		avatarURL = fmt.Sprintf("https://cdn.discordapp.com/avatars/%s/%s.png", raw.ID, raw.Avatar)
+	}
 	sessionToken := randomHex(32)
-	return storePendingFn(state, sessionToken, user.ID)
+	return storePendingFn(state, sessionToken, DiscordUser{ID: raw.ID, Username: raw.Username, AvatarURL: avatarURL})
 }
 
 func randomHex(n int) string {

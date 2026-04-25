@@ -20,7 +20,7 @@ func runMigrations() error {
 	row := _db.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_version`)
 	row.Scan(&version)
 
-	migrations := []string{"1_initial_schema.up.sql"}
+	migrations := []string{"1_initial_schema.up.sql", "2_add_user_profile.up.sql"}
 	for i, name := range migrations {
 		if i+1 <= version {
 			continue
