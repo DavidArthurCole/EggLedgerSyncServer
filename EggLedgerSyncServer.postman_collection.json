@@ -1,0 +1,768 @@
+{
+  "info": {
+    "name": "EggLedgerSyncServer",
+    "_postman_id": "eggledger-sync-server-v1",
+    "description": "EggLedger cloud backup sync server. Set `base_url` to `http://localhost:8080/api/v1` for local testing. After completing the Discord OAuth flow, copy the returned token into the `token` collection variable.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080/api/v1",
+      "type": "string",
+      "description": "Change to https://ledgersync.davidarthurcole.me/api/v1 for production"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string",
+      "description": "Bearer token — populated after a successful auth/poll response"
+    },
+    {
+      "key": "state",
+      "value": "",
+      "type": "string",
+      "description": "OAuth state UUID — populated by the Start Discord OAuth request test script"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Start Discord OAuth",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/discord",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "discord"]
+            },
+            "description": "Returns a Discord OAuth2 URL and a state UUID. Open the `url` in a browser to authorize. The state UUID is saved to the `state` collection variable automatically by the test script."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.state) {",
+                  "    pm.collectionVariables.set('state', body.state);",
+                  "    console.log('State saved:', body.state);",
+                  "}",
+                  "if (body.url) {",
+                  "    console.log('Open this URL in your browser to authorize:', body.url);",
+                  "}",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has url field', () => pm.expect(body.url).to.be.a('string').and.not.empty);",
+                  "pm.test('Has state field', () => pm.expect(body.state).to.be.a('string').and.not.empty);"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{"key": "Content-Type", "value": "application/json"}],
+              "body": "{\"url\":\"https://discord.com/oauth2/authorize?...\",\"state\":\"550e8400-e29b-41d4-a716-446655440000\"}"
+            }
+          ]
+        },
+        {
+          "name": "Poll for Token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/poll?state={{state}}",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "poll"],
+              "query": [
+                {
+                  "key": "state",
+                  "value": "{{state}}",
+                  "description": "UUID returned by Start Discord OAuth"
+                }
+              ]
+            },
+            "description": "Poll after browser authorization. Returns 202 while pending, 200 with token once the browser callback completes. The token is saved to the `token` collection variable automatically."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    if (body.token) {",
+                  "        pm.collectionVariables.set('token', body.token);",
+                  "        console.log('Token saved:', body.token);",
+                  "    }",
+                  "    pm.test('Has token field', () => pm.expect(body.token).to.be.a('string').and.not.empty);",
+                  "} else if (pm.response.code === 202) {",
+                  "    console.log('Still pending — try again in a few seconds');",
+                  "    pm.test('Status 202 (pending)', () => pm.response.to.have.status(202));",
+                  "} else {",
+                  "    pm.test('Unexpected status', () => pm.expect(pm.response.code).to.be.oneOf([200, 202]));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "202 Accepted (still pending)",
+              "status": "Accepted",
+              "code": 202,
+              "header": [],
+              "body": ""
+            },
+            {
+              "name": "200 OK (token ready)",
+              "status": "OK",
+              "code": 200,
+              "header": [{"key": "Content-Type", "value": "application/json"}],
+              "body": "{\"token\":\"abc123...\"}"
+            },
+            {
+              "name": "404 Not Found (expired or invalid state)",
+              "status": "Not Found",
+              "code": 404,
+              "header": [],
+              "body": "not found\n"
+            }
+          ]
+        },
+        {
+          "name": "Invalidate Session",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/session",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "session"]
+            },
+            "description": "Deletes the current session token from the database. Always returns 204 regardless of whether the token existed."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204', () => pm.response.to.have.status(204));",
+                  "if (pm.response.code === 204) {",
+                  "    pm.collectionVariables.set('token', '');",
+                  "    console.log('Token cleared from collection variables');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "204 No Content",
+              "status": "No Content",
+              "code": 204,
+              "header": [],
+              "body": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Blobs",
+      "item": [
+        {
+          "name": "Put Blob (accounts)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ciphertext\": \"dGVzdC1lbmNyeXB0ZWQtYWNjb3VudHMtZGF0YQ==\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/blobs/accounts",
+              "host": ["{{base_url}}"],
+              "path": ["blobs", "accounts"]
+            },
+            "description": "Upsert the `accounts` blob. The ciphertext field should be a base64-encoded AES-256-GCM ciphertext produced by the EggLedger client. The sample value here is a plain base64 string for local testing only."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "204 No Content",
+              "status": "No Content",
+              "code": 204,
+              "header": [],
+              "body": ""
+            },
+            {
+              "name": "401 Unauthorized",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [],
+              "body": "unauthorized\n"
+            }
+          ]
+        },
+        {
+          "name": "Put Blob (settings)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ciphertext\": \"dGVzdC1lbmNyeXB0ZWQtc2V0dGluZ3MtZGF0YQ==\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/blobs/settings",
+              "host": ["{{base_url}}"],
+              "path": ["blobs", "settings"]
+            },
+            "description": "Upsert the `settings` blob."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Put Blob (reports)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ciphertext\": \"dGVzdC1lbmNyeXB0ZWQtcmVwb3J0cy1kYXRh\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/blobs/reports",
+              "host": ["{{base_url}}"],
+              "path": ["blobs", "reports"]
+            },
+            "description": "Upsert the `reports` blob."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Blob (accounts)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/blobs/accounts",
+              "host": ["{{base_url}}"],
+              "path": ["blobs", "accounts"]
+            },
+            "description": "Retrieve the `accounts` blob. Returns the stored base64 ciphertext and a Unix timestamp for when it was last updated."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    pm.test('Has ciphertext', () => pm.expect(body.ciphertext).to.be.a('string').and.not.empty);",
+                  "    pm.test('Has updatedAt', () => pm.expect(body.updatedAt).to.be.a('number'));",
+                  "} else {",
+                  "    pm.test('Status 200 or 404', () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{"key": "Content-Type", "value": "application/json"}],
+              "body": "{\"ciphertext\":\"dGVzdC1lbmNyeXB0ZWQtYWNjb3VudHMtZGF0YQ==\",\"updatedAt\":1714000000}"
+            },
+            {
+              "name": "404 Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "header": [],
+              "body": "not found\n"
+            }
+          ]
+        },
+        {
+          "name": "Get Blob (settings)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/blobs/settings",
+              "host": ["{{base_url}}"],
+              "path": ["blobs", "settings"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 or 404', () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Blob (reports)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/blobs/reports",
+              "host": ["{{base_url}}"],
+              "path": ["blobs", "reports"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 or 404', () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Blobs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/blobs",
+              "host": ["{{base_url}}"],
+              "path": ["blobs"]
+            },
+            "description": "Returns an array of all blobs owned by the authenticated user, with name and updatedAt for each."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Response is array', () => pm.expect(body).to.be.an('array'));",
+                  "if (body.length > 0) {",
+                  "    pm.test('Each item has name and updatedAt', () => {",
+                  "        body.forEach(item => {",
+                  "            pm.expect(item.name).to.be.a('string');",
+                  "            pm.expect(item.updatedAt).to.be.a('number');",
+                  "        });",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{"key": "Content-Type", "value": "application/json"}],
+              "body": "[{\"name\":\"accounts\",\"updatedAt\":1714000000},{\"name\":\"settings\",\"updatedAt\":1714000001}]"
+            }
+          ]
+        },
+        {
+          "name": "Delete Blob (accounts)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/blobs/accounts",
+              "host": ["{{base_url}}"],
+              "path": ["blobs", "accounts"]
+            },
+            "description": "Delete the named blob. Always returns 204 (even if the blob did not exist)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "204 No Content",
+              "status": "No Content",
+              "code": 204,
+              "header": [],
+              "body": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "User",
+      "item": [
+        {
+          "name": "Delete User Account",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/user",
+              "host": ["{{base_url}}"],
+              "path": ["user"]
+            },
+            "description": "WARNING: Permanently deletes the authenticated user row and all associated blobs via CASCADE. This cannot be undone. After this call, the session token is also invalid."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204', () => pm.response.to.have.status(204));",
+                  "if (pm.response.code === 204) {",
+                  "    pm.collectionVariables.set('token', '');",
+                  "    console.log('Token cleared — user account deleted');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "204 No Content",
+              "status": "No Content",
+              "code": 204,
+              "header": [],
+              "body": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Verification",
+      "item": [
+        {
+          "name": "Verify Binary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/verify",
+              "host": ["{{base_url}}"],
+              "path": ["verify"]
+            },
+            "description": "Returns the SHA-256 hash, version string, and build date of the running binary. In local dev builds these will be `unknown`/`dev` unless -ldflags were passed."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Has sha256 field', () => pm.expect(body.sha256).to.be.a('string').and.not.empty);",
+                  "pm.test('Has version field', () => pm.expect(body.version).to.be.a('string').and.not.empty);",
+                  "pm.test('Has built field', () => pm.expect(body.built).to.be.a('string').and.not.empty);"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK (production build)",
+              "status": "OK",
+              "code": 200,
+              "header": [{"key": "Content-Type", "value": "application/json"}],
+              "body": "{\"sha256\":\"a1b2c3...\",\"version\":\"v1.0.0\",\"built\":\"2026-04-25T00:00:00Z\"}"
+            },
+            {
+              "name": "200 OK (local dev build)",
+              "status": "OK",
+              "code": 200,
+              "header": [{"key": "Content-Type", "value": "application/json"}],
+              "body": "{\"sha256\":\"unknown\",\"version\":\"dev\",\"built\":\"unknown\"}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Auth Error Cases",
+      "item": [
+        {
+          "name": "Get Blob — No Token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/blobs/accounts",
+              "host": ["{{base_url}}"],
+              "path": ["blobs", "accounts"]
+            },
+            "description": "Expect 401 — no Authorization header."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Blob — Bad Token",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer this-is-not-a-real-token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/blobs/accounts",
+              "host": ["{{base_url}}"],
+              "path": ["blobs", "accounts"]
+            },
+            "description": "Expect 401 — token does not exist in sessions table."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Poll — Invalid State",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/poll?state=00000000-0000-0000-0000-000000000000",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "poll"],
+              "query": [
+                {
+                  "key": "state",
+                  "value": "00000000-0000-0000-0000-000000000000"
+                }
+              ]
+            },
+            "description": "Expect 404 — state does not exist in pending_auth."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Put Blob — Malformed JSON",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "not valid json",
+              "options": {
+                "raw": {
+                  "language": "text"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/blobs/accounts",
+              "host": ["{{base_url}}"],
+              "path": ["blobs", "accounts"]
+            },
+            "description": "Expect 400 — malformed request body."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

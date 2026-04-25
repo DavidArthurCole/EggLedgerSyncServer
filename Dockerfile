@@ -1,4 +1,4 @@
-FROM cgr.dev/chainguard/go:latest-dev AS build
+FROM golang:1.24-alpine AS build
 
 WORKDIR /app
 
@@ -8,7 +8,7 @@ RUN go mod download
 COPY . ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags '-s -w' -o server .
 
-FROM cgr.dev/chainguard/static:nonroot
+FROM gcr.io/distroless/static-debian12:nonroot
 
 WORKDIR /app
 
