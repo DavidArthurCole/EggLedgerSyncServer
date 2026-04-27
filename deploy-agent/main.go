@@ -10,6 +10,7 @@ func main() {
 	secret := os.Getenv("DEPLOY_AGENT_SECRET")
 	port := os.Getenv("DEPLOY_AGENT_PORT")
 	repoPath := os.Getenv("DEPLOY_REPO_PATH")
+	containerName := os.Getenv("DEPLOY_CONTAINER_NAME")
 	webhookURL := os.Getenv("PORTAINER_WEBHOOK_URL")
 
 	if port == "" {
@@ -18,7 +19,7 @@ func main() {
 
 	h := &deployHandler{
 		secret:      secret,
-		runPipeline: buildPipeline(repoPath, webhookURL),
+		runPipeline: buildPipeline(repoPath, containerName, webhookURL),
 	}
 
 	mux := http.NewServeMux()
