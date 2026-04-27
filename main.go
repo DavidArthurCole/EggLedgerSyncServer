@@ -18,6 +18,7 @@ import (
 	"github.com/DavidArthurCole/EggLedgerSyncServer/auth"
 	"github.com/DavidArthurCole/EggLedgerSyncServer/db"
 	"github.com/DavidArthurCole/EggLedgerSyncServer/handlers"
+	"github.com/DavidArthurCole/EggLedgerSyncServer/bot"
 )
 
 var (
@@ -26,6 +27,8 @@ var (
 	_flagDiscordID   = flag.String("discord-client-id", os.Getenv("DISCORD_CLIENT_ID"), "Discord OAuth2 client ID")
 	_flagDiscordSec  = flag.String("discord-client-secret", os.Getenv("DISCORD_CLIENT_SECRET"), "Discord OAuth2 client secret")
 	_flagRedirectURL = flag.String("redirect-url", "https://ledgersync.davidarthurcole.me/api/v1/auth/callback", "OAuth2 redirect URL")
+	_flagBotToken    = flag.String("discord-bot-token", os.Getenv("DISCORD_BOT_TOKEN"), "Discord bot token for Gateway presence (env: DISCORD_BOT_TOKEN)")
+	_flagGuildID     = flag.String("discord-guild-id", os.Getenv("DISCORD_GUILD_ID"), "Discord guild ID for slash command registration (env: DISCORD_GUILD_ID)")
 )
 
 func main() {
@@ -41,6 +44,20 @@ func main() {
 	defer db.Close()
 
 	auth.Init(*_flagDiscordID, *_flagDiscordSec, *_flagRedirectURL)
+
+	botCloser, botErr := bot.Start(bot.Config{
+		Token:        *_flagBotToken,
+		AppID:        *_flagDiscordID,
+		GuildID:      *_flagGuildID,
+		BuildSHA256:  handlers.BuildSHA256,
+		BuildVersion: handlers.BuildVersion,
+		BuildDate:    handlers.BuildDate,
+	})
+	if botErr != nil {
+		log.Printf("bot: failed to start (%v), continuing without bot", botErr)
+		botCloser = func() { /* no-op: bot failed to start, nothing to close */ }
+	}
+	defer botCloser()
 
 	mux := http.NewServeMux()
 	blobs := handlers.NewBlobHandlers(db.DB())
