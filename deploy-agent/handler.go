@@ -20,17 +20,19 @@ func tailLines(s string, n int) string {
 }
 
 type pipelineResult struct {
-	OK       bool
-	Tail     string
-	FromHash string
-	ToHash   string
+	OK             bool
+	AlreadyUpToDate bool
+	Tail           string
+	FromHash       string
+	ToHash         string
 }
 
 type deployResult struct {
-	OK       bool   `json:"ok"`
-	Tail     string `json:"tail,omitempty"`
-	FromHash string `json:"fromHash,omitempty"`
-	ToHash   string `json:"toHash,omitempty"`
+	OK             bool   `json:"ok"`
+	AlreadyUpToDate bool   `json:"alreadyUpToDate,omitempty"`
+	Tail           string `json:"tail,omitempty"`
+	FromHash       string `json:"fromHash,omitempty"`
+	ToHash         string `json:"toHash,omitempty"`
 }
 
 type deployHandler struct {
@@ -62,10 +64,11 @@ func (h *deployHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	result := h.runPipeline()
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(deployResult{
-		OK:       result.OK,
-		Tail:     result.Tail,
-		FromHash: result.FromHash,
-		ToHash:   result.ToHash,
+		OK:              result.OK,
+		AlreadyUpToDate: result.AlreadyUpToDate,
+		Tail:            result.Tail,
+		FromHash:        result.FromHash,
+		ToHash:          result.ToHash,
 	}); err != nil {
 		log.Printf("deployHandler: encode response: %v", err)
 	}

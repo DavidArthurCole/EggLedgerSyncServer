@@ -29,6 +29,10 @@ func buildPipeline(repoPath, portainerWebhookURL string) func() pipelineResult {
 			return pipelineResult{Tail: tailLines(out.String(), 20)}
 		}
 
+		if strings.Contains(out.String(), "Already up to date.") {
+			return pipelineResult{OK: true, AlreadyUpToDate: true, FromHash: fromHash, ToHash: fromHash}
+		}
+
 		toHash := gitShortHash(repoPath)
 		out.Reset()
 

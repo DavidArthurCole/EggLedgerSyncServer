@@ -16,6 +16,17 @@ func IsAdmin(i *discordgo.InteractionCreate) bool {
 	return i.Member != nil && i.Member.Permissions&discordgo.PermissionAdministrator != 0
 }
 
+// AlreadyUpToDateEmbed builds the public embed when the server is already on the latest commit.
+func AlreadyUpToDateEmbed(hash string) *discordgo.MessageEmbed {
+	return &discordgo.MessageEmbed{
+		Title: "Already up to date.",
+		Color: 0x5865F2,
+		Fields: []*discordgo.MessageEmbedField{
+			{Name: "Current", Value: fmt.Sprintf("[`%s`](%s)", hash, commitURL(hash)), Inline: true},
+		},
+	}
+}
+
 // SuccessEmbed builds the public green embed for a successful /updateserver.
 func SuccessEmbed(fromHash, toHash string) *discordgo.MessageEmbed {
 	return &discordgo.MessageEmbed{
@@ -38,32 +49,33 @@ func FailureEmbed(tail string) *discordgo.MessageEmbed {
 }
 
 type deployAgentResponse struct {
-	OK       bool   `json:"ok"`
-	Tail     string `json:"tail"`
-	FromHash string `json:"fromHash"`
-	ToHash   string `json:"toHash"`
+	OK              bool   `json:"ok"`
+	AlreadyUpToDate bool   `json:"alreadyUpToDate"`
+	Tail            string `json:"tail"`
+	FromHash        string `json:"fromHash"`
+	ToHash          string `json:"toHash"`
 }
 
-func callDeployAgent(agentURL, secret string) (ok bool, tail, fromHash, toHash string, err error) {
+func callDeployAgent(agentURL, secret string) (ok, alreadyUpToDate bool, tail, fromHash, toHash string, err error) {
 	client := &http.Client{Timeout: 120 * time.Second}
 	req, err := http.NewRequest(http.MethodPost, agentURL, nil)
 	if err != nil {
-		return false, "", "", "", errors.Wrap(err, "callDeployAgent: new request")
+		return false, false, "", "", "", errors.Wrap(err, "callDeployAgent: new request")
 	}
 	req.Header.Set("Authorization", "Bearer "+secret)
 	resp, err := client.Do(req)
 	if err != nil {
-		return false, "", "", "", errors.Wrap(err, "callDeployAgent: do request")
+		return false, false, "", "", "", errors.Wrap(err, "callDeployAgent: do request")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return false, fmt.Sprintf("deploy agent returned %s", resp.Status), "", "", nil
+		return false, false, fmt.Sprintf("deploy agent returned %s", resp.Status), "", "", nil
 	}
 	var result deployAgentResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return false, "could not decode deploy agent response", "", "", nil
+		return false, false, "could not decode deploy agent response", "", "", nil
 	}
-	return result.OK, result.Tail, result.FromHash, result.ToHash, nil
+	return result.OK, result.AlreadyUpToDate, result.Tail, result.FromHash, result.ToHash, nil
 }
 
 func handleUpdateServer(s *discordgo.Session, i *discordgo.InteractionCreate, cfg Config) {
@@ -99,13 +111,19 @@ func handleUpdateServer(s *discordgo.Session, i *discordgo.InteractionCreate, cf
 		return
 	}
 	go func() {
-		ok, tail, fromHash, toHash, err := callDeployAgent(cfg.DeployAgentURL, cfg.DeployAgentSecret)
+		ok, alreadyUpToDate, tail, fromHash, toHash, err := callDeployAgent(cfg.DeployAgentURL, cfg.DeployAgentSecret)
 		if err != nil {
 			ok = false
 			tail = err.Error()
 		}
-		if ok {
-			embed := SuccessEmbed(fromHash, toHash)
+		var embed *discordgo.MessageEmbed
+		switch {
+		case alreadyUpToDate:
+			embed = AlreadyUpToDateEmbed(fromHash)
+		case ok:
+			embed = SuccessEmbed(fromHash, toHash)
+		}
+		if embed != nil {
 			embeds := []*discordgo.MessageEmbed{embed}
 			if _, err := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 				Embeds: &embeds,

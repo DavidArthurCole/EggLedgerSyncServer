@@ -8,6 +8,28 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+func TestAlreadyUpToDateEmbed(t *testing.T) {
+	embed := bot.AlreadyUpToDateEmbed("abc1234")
+	if embed == nil {
+		t.Fatal("nil embed")
+	}
+	if embed.Color != 0x5865F2 {
+		t.Errorf("expected blurple color 0x5865F2, got 0x%X", embed.Color)
+	}
+	if !strings.Contains(embed.Title, "up to date") {
+		t.Errorf("title should contain 'up to date', got %q", embed.Title)
+	}
+	if len(embed.Fields) == 0 {
+		t.Fatal("expected at least one field")
+	}
+	if !strings.Contains(embed.Fields[0].Value, "abc1234") {
+		t.Errorf("field should contain hash, got %q", embed.Fields[0].Value)
+	}
+	if !strings.Contains(embed.Fields[0].Value, "https://github.com") {
+		t.Error("field should be a link")
+	}
+}
+
 func TestSuccessEmbed(t *testing.T) {
 	embed := bot.SuccessEmbed("abc1234", "def5678")
 	if embed == nil {
