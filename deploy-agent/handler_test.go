@@ -34,7 +34,7 @@ func TestTailLines(t *testing.T) {
 func TestDeployHandler_Auth(t *testing.T) {
 	h := &deployHandler{
 		secret:      "test-secret",
-		runPipeline: func() (bool, string) { return true, "" },
+		runPipeline: func() pipelineResult { return pipelineResult{OK: true} },
 	}
 
 	t.Run("wrong secret returns 401", func(t *testing.T) {
@@ -80,10 +80,10 @@ func TestDeployHandler_InProgress(t *testing.T) {
 	t.Cleanup(func() { close(done) })
 	h := &deployHandler{
 		secret: "s",
-		runPipeline: func() (bool, string) {
+		runPipeline: func() pipelineResult {
 			close(started)
 			<-done
-			return true, ""
+			return pipelineResult{OK: true}
 		},
 	}
 

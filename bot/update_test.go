@@ -8,44 +8,46 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-func TestUpdateResponse_Success(t *testing.T) {
-	resp := bot.UpdateResponse(true, "")
-	if resp == nil || resp.Data == nil {
-		t.Fatal("nil response or data")
+func TestSuccessEmbed(t *testing.T) {
+	embed := bot.SuccessEmbed("abc1234", "def5678")
+	if embed == nil {
+		t.Fatal("nil embed")
 	}
-	if resp.Data.Flags != discordgo.MessageFlagsEphemeral {
-		t.Errorf("expected ephemeral flag, got %d", resp.Data.Flags)
+	if embed.Color != 0x57F287 {
+		t.Errorf("expected green color 0x57F287, got 0x%X", embed.Color)
 	}
-	if len(resp.Data.Embeds) == 0 {
-		t.Fatal("expected at least one embed")
-	}
-	embed := resp.Data.Embeds[0]
 	if !strings.Contains(embed.Title, "Updated") {
-		t.Errorf("success title should contain 'Updated', got %q", embed.Title)
+		t.Errorf("title should contain 'Updated', got %q", embed.Title)
 	}
-	if embed.Description != "" {
-		t.Errorf("success description should be empty, got %q", embed.Description)
+	fieldValues := make(map[string]string)
+	for _, f := range embed.Fields {
+		fieldValues[f.Name] = f.Value
+	}
+	if !strings.Contains(fieldValues["From"], "abc1234") {
+		t.Errorf("From field should contain fromHash, got %q", fieldValues["From"])
+	}
+	if !strings.Contains(fieldValues["To"], "def5678") {
+		t.Errorf("To field should contain toHash, got %q", fieldValues["To"])
+	}
+	if !strings.Contains(fieldValues["From"], "https://github.com") {
+		t.Error("From field should be a link")
 	}
 }
 
-func TestUpdateResponse_Failure(t *testing.T) {
+func TestFailureEmbed(t *testing.T) {
 	tail := "Error: build failed\nstep 5/7 FAILED"
-	resp := bot.UpdateResponse(false, tail)
-	if resp == nil || resp.Data == nil {
-		t.Fatal("nil response or data")
+	embed := bot.FailureEmbed(tail)
+	if embed == nil {
+		t.Fatal("nil embed")
 	}
-	if resp.Data.Flags != discordgo.MessageFlagsEphemeral {
-		t.Errorf("expected ephemeral flag, got %d", resp.Data.Flags)
+	if embed.Color != 0xED4245 {
+		t.Errorf("expected red color 0xED4245, got 0x%X", embed.Color)
 	}
-	if len(resp.Data.Embeds) == 0 {
-		t.Fatal("expected at least one embed")
-	}
-	embed := resp.Data.Embeds[0]
 	if !strings.Contains(strings.ToLower(embed.Title), "failed") {
-		t.Errorf("failure title should contain 'failed', got %q", embed.Title)
+		t.Errorf("title should contain 'failed', got %q", embed.Title)
 	}
 	if !strings.Contains(embed.Description, tail) {
-		t.Errorf("description should contain tail output\ngot:  %q\nwant: contains %q", embed.Description, tail)
+		t.Errorf("description should contain tail, got %q", embed.Description)
 	}
 	if !strings.Contains(embed.Description, "```") {
 		t.Error("description should wrap tail in a code block")

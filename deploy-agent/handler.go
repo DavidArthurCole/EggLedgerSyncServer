@@ -19,16 +19,25 @@ func tailLines(s string, n int) string {
 	return strings.Join(lines[len(lines)-n:], "\n")
 }
 
+type pipelineResult struct {
+	OK       bool
+	Tail     string
+	FromHash string
+	ToHash   string
+}
+
 type deployResult struct {
-	OK   bool   `json:"ok"`
-	Tail string `json:"tail,omitempty"`
+	OK       bool   `json:"ok"`
+	Tail     string `json:"tail,omitempty"`
+	FromHash string `json:"fromHash,omitempty"`
+	ToHash   string `json:"toHash,omitempty"`
 }
 
 type deployHandler struct {
 	secret      string
 	mu          sync.Mutex
 	inProgress  bool
-	runPipeline func() (ok bool, tail string)
+	runPipeline func() pipelineResult
 }
 
 func (h *deployHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -50,9 +59,14 @@ func (h *deployHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.inProgress = false
 		h.mu.Unlock()
 	}()
-	ok, tail := h.runPipeline()
+	result := h.runPipeline()
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(deployResult{OK: ok, Tail: tail}); err != nil {
+	if err := json.NewEncoder(w).Encode(deployResult{
+		OK:       result.OK,
+		Tail:     result.Tail,
+		FromHash: result.FromHash,
+		ToHash:   result.ToHash,
+	}); err != nil {
 		log.Printf("deployHandler: encode response: %v", err)
 	}
 }

@@ -5,26 +5,38 @@ import (
 	"log"
 	"net/http"
 	"os/exec"
+	"strings"
 )
 
-func buildPipeline(repoPath, portainerWebhookURL string) func() (bool, string) {
-	return func() (bool, string) {
+func gitShortHash(repoPath string) string {
+	out, err := exec.Command("git", "-C", repoPath, "rev-parse", "--short", "HEAD").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func buildPipeline(repoPath, portainerWebhookURL string) func() pipelineResult {
+	return func() pipelineResult {
+		fromHash := gitShortHash(repoPath)
+
 		var out bytes.Buffer
 
 		pull := exec.Command("git", "-C", repoPath, "pull")
 		pull.Stdout = &out
 		pull.Stderr = &out
 		if err := pull.Run(); err != nil {
-			return false, tailLines(out.String(), 20)
+			return pipelineResult{Tail: tailLines(out.String(), 20)}
 		}
 
+		toHash := gitShortHash(repoPath)
 		out.Reset()
 
 		build := exec.Command("docker", "build", "-t", "ledgersyncserver:latest", repoPath)
 		build.Stdout = &out
 		build.Stderr = &out
 		if err := build.Run(); err != nil {
-			return false, tailLines(out.String(), 20)
+			return pipelineResult{FromHash: fromHash, ToHash: toHash, Tail: tailLines(out.String(), 20)}
 		}
 
 		if portainerWebhookURL != "" {
@@ -34,6 +46,6 @@ func buildPipeline(repoPath, portainerWebhookURL string) func() (bool, string) {
 				resp.Body.Close()
 			}
 		}
-		return true, ""
+		return pipelineResult{OK: true, FromHash: fromHash, ToHash: toHash}
 	}
 }
