@@ -1,6 +1,7 @@
 package bot_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/bwmarrin/discordgo"
@@ -42,11 +43,14 @@ func TestVerifyResponse(t *testing.T) {
 		fieldValues[f.Name] = f.Value
 	}
 
-	if got := fieldValues["SHA256"]; got != cfg.BuildSHA256 {
-		t.Errorf("SHA256: want %q, got %q", cfg.BuildSHA256, got)
+	commitURL := fmt.Sprintf("https://github.com/DavidArthurCole/EggLedgerSyncServer/commit/%s", cfg.BuildVersion)
+	wantSHA256 := fmt.Sprintf("[%s](%s)", cfg.BuildSHA256, commitURL)
+	wantVersion := fmt.Sprintf("[%s](%s)", cfg.BuildVersion, commitURL)
+	if got := fieldValues["SHA256"]; got != wantSHA256 {
+		t.Errorf("SHA256: want %q, got %q", wantSHA256, got)
 	}
-	if got := fieldValues["Version"]; got != cfg.BuildVersion {
-		t.Errorf("Version: want %q, got %q", cfg.BuildVersion, got)
+	if got := fieldValues["Version"]; got != wantVersion {
+		t.Errorf("Version: want %q, got %q", wantVersion, got)
 	}
 	if got := fieldValues["Built"]; got != cfg.BuildDate {
 		t.Errorf("Built: want %q, got %q", cfg.BuildDate, got)
