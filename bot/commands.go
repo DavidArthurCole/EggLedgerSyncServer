@@ -6,10 +6,17 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+var adminPerm = int64(discordgo.PermissionAdministrator)
+
 var commandDefinitions = []*discordgo.ApplicationCommand{
 	{
 		Name:        "verify",
 		Description: "Show the running server's build identity (SHA256, version, build date).",
+	},
+	{
+		Name:                     "updateserver",
+		Description:              "Pull the latest code and redeploy the server (admin only).",
+		DefaultMemberPermissions: &adminPerm,
 	},
 }
 
@@ -45,6 +52,8 @@ func handleInteraction(cfg Config) func(*discordgo.Session, *discordgo.Interacti
 			if err := s.InteractionRespond(i.Interaction, VerifyResponse(cfg)); err != nil {
 				log.Printf("bot: verify respond: %v", err)
 			}
+		case "updateserver":
+			handleUpdateServer(s, i, cfg)
 		}
 	}
 }

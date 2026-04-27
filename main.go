@@ -29,6 +29,8 @@ var (
 	_flagRedirectURL = flag.String("redirect-url", "https://ledgersync.davidarthurcole.me/api/v1/auth/callback", "OAuth2 redirect URL")
 	_flagBotToken    = flag.String("discord-bot-token", os.Getenv("DISCORD_BOT_TOKEN"), "Discord bot token for Gateway presence (env: DISCORD_BOT_TOKEN)")
 	_flagGuildID     = flag.String("discord-guild-id", os.Getenv("DISCORD_GUILD_ID"), "Discord guild ID for slash command registration (env: DISCORD_GUILD_ID)")
+	_flagDeployAgentURL    = flag.String("deploy-agent-url", os.Getenv("DEPLOY_AGENT_URL"), "Deploy agent URL (env: DEPLOY_AGENT_URL)")
+	_flagDeployAgentSecret = flag.String("deploy-agent-secret", os.Getenv("DEPLOY_AGENT_SECRET"), "Deploy agent shared secret (env: DEPLOY_AGENT_SECRET)")
 )
 
 func main() {
@@ -46,12 +48,14 @@ func main() {
 	auth.Init(*_flagDiscordID, *_flagDiscordSec, *_flagRedirectURL)
 
 	botCloser, botErr := bot.Start(bot.Config{
-		Token:        *_flagBotToken,
-		AppID:        *_flagDiscordID,
-		GuildID:      *_flagGuildID,
-		BuildSHA256:  handlers.BuildSHA256,
-		BuildVersion: handlers.BuildVersion,
-		BuildDate:    handlers.BuildDate,
+		Token:             *_flagBotToken,
+		AppID:             *_flagDiscordID,
+		GuildID:           *_flagGuildID,
+		BuildSHA256:       handlers.BuildSHA256,
+		BuildVersion:      handlers.BuildVersion,
+		BuildDate:         handlers.BuildDate,
+		DeployAgentURL:    *_flagDeployAgentURL,
+		DeployAgentSecret: *_flagDeployAgentSecret,
 	})
 	if botErr != nil {
 		log.Printf("bot: failed to start (%v), continuing without bot", botErr)

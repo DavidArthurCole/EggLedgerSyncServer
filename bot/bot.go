@@ -9,12 +9,14 @@ import (
 
 // Config holds all configuration needed to start the bot.
 type Config struct {
-	Token        string
-	AppID        string
-	GuildID      string
-	BuildSHA256  string
-	BuildVersion string
-	BuildDate    string
+	Token             string
+	AppID             string
+	GuildID           string
+	BuildSHA256       string
+	BuildVersion      string
+	BuildDate         string
+	DeployAgentURL    string
+	DeployAgentSecret string
 }
 
 // Start opens a Discord Gateway session, sets bot presence, and registers slash commands.
