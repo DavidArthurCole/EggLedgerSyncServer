@@ -25,6 +25,11 @@ func RequireAuth(db *sql.DB, next http.HandlerFunc) http.HandlerFunc {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
+		// Sliding expiry: every successful authenticated request resets the clock to 30 days from now.
+		db.ExecContext(r.Context(),
+			`UPDATE sessions SET expires_at = $1 WHERE token = $2`,
+			time.Now().Add(30*24*time.Hour).Unix(), token,
+		)
 		r.Header.Set("X-Discord-ID", discordID)
 		next(w, r)
 	}

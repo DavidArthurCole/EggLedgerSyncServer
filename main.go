@@ -119,7 +119,7 @@ func handleAuthCallback(w http.ResponseWriter, r *http.Request, database *sql.DB
 		}
 		_, err := database.ExecContext(r.Context(),
 			`INSERT INTO sessions (token, discord_id, expires_at) VALUES ($1, $2, $3)`,
-			token, user.ID, time.Now().Add(24*time.Hour).Unix(),
+			token, user.ID, time.Now().Add(30*24*time.Hour).Unix(),
 		)
 		if err != nil {
 			return err
